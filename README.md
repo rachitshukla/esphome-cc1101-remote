@@ -62,3 +62,7 @@ PORT=/dev/cu.usbserial-0001
 4. Add the ESPHome integration in Home Assistant. Select the discovered device or enter `string-lights-radio.local`, then enter the API key. Test ON and OFF while observing the lights.
 
 For another compatible fixed-code device, reuse the [shared transmit action](packages/send-rc-switch.yaml) with its measured frequency, protocol, repeat count, and command. The controller can switch frequency between devices. Fan commands depend on the specific remote and require their own captures.
+
+## License
+
+[MIT](LICENSE)

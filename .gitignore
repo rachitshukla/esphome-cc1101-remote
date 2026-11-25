@@ -11,3 +11,12 @@ captures/
 .DS_Store
 __pycache__/
 .verify/
+
+# Local credential stores and private-key exports
+.env
+.env.*
+!.env.example
+*.key
+*.p12
+*.pfx
+*.pem
