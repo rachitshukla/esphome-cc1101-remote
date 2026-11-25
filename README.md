@@ -209,21 +209,31 @@ add a Tile card for the fan light, set the icon tap action to Toggle, and add
 the **Light brightness** feature. The fan light replaces the four momentary
 light buttons. Update any automations that used those buttons.
 
-For the first installation, use the handheld remote to bring the lamp to full
-brightness, then tap it off. The controller starts with that reference and
-assumes the receiver remembers brightness when toggled off and on. It saves
-its estimated position locally. A power change sends one tap. Moving the
-slider sends a timed brighten or dim hold. The lamp gives no feedback, so
-brightness is approximate. If someone uses the handheld remote or the lamp
-misses a command, align the two again: set Home Assistant to 100% and off,
-then use the handheld remote to leave the lamp at full brightness and off.
+A short tap on either remote light button toggles power. Hold Brighten and
+the lamp brightens until it jumps back to dim. Hold Dim and it dims until
+it jumps back to bright. Both cycles continue as long as the button is held.
 
-The initial settings in `packages/minka.yaml` use the owner's estimated
-500 ms of travel between brightness endpoints and a provisional 300 ms
-before a hold starts dimming. To calibrate, observe the delay until the lamp
-first changes, then time the remaining travel to the opposite endpoint.
-Set `minka_hold_lead_ms` and `minka_ramp_ms` respectively. If small slider
-changes toggle power, check the hold delay first.
+To line up the slider with the lamp, set **Minka Aire Fan Light** to ON and
+100% in Home Assistant and let the command finish. If the lamp is off, tap
+either handheld light button once. Hold **Dim** and release as soon as you
+see the jump from dim to bright. Leave the lamp on. Home Assistant and the
+lamp now have approximately the same starting brightness. Repeat this if
+handheld use or a missed command puts them out of sync.
+
+The slider sends a timed hold in the direction of the requested change. The
+lamp gives no brightness feedback, so a timing error near either end can
+carry it around the loop. The controller also assumes the lamp remembers
+its brightness across power toggles.
+
+For calibration, keep Brighten held and time the **first** bright-to-dim
+jump through the **fourth**. Divide by three for the average loop time.
+Timing between jumps excludes the delay before a hold takes effect. If
+the two directions appear to run at different speeds, repeat with Dim and
+watch the dim-to-bright jumps. In `packages/minka.yaml`, `minka_ramp_ms`
+currently estimates minimum-to-maximum travel at 500 ms. A full loop also
+includes any pause at the endpoints. The separate `minka_hold_lead_ms`
+estimates the delay before dimming starts at 300 ms. Both values still
+need checking on the lamp.
 
 The receive-only capture at 303.875 MHz ASK/OOK produced a dominant 12-bit
 message across five separate taps for every button. The eight leading address
