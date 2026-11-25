@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 228" role="img" aria-labelledby="title desc">
+  <title id="title">How the radio sends a zero and a one</title>
+  <desc id="desc">Nominal RC Switch protocol 1 timing. Each bit takes 1.4 milliseconds. A zero has 350 microseconds of carrier followed by 1050 of silence. A one reverses those durations.</desc>
+  <rect x="1" y="1" width="778" height="226" rx="14" fill="#f6f9fc" stroke="#b6c6d5"/>
+  <g font-family="system-ui, sans-serif" fill="#19344a">
+    <text x="24" y="36" font-size="22" font-weight="700">Two ways to send one bit</text>
+    <text x="24" y="62" font-size="16">Nominal RC Switch protocol 1 timing</text>
+    <g text-anchor="middle" font-size="18" font-weight="700">
+      <text x="285" y="99">Bit 0</text><text x="585" y="99">Bit 1</text>
+    </g>
+    <g text-anchor="end" font-size="16">
+      <text x="118" y="127">Carrier on</text><text x="118" y="176">Carrier off</text>
+    </g>
+    <g stroke="#b6c6d5" stroke-dasharray="4 5">
+      <path d="M135 122H735 M135 172H735 M435 105V184"/>
+    </g>
+    <path d="M135 172V122h75v50h225v-50h225v50h75" fill="none" stroke="#006a70" stroke-width="4" stroke-linejoin="round"/>
+    <g text-anchor="middle" font-size="15">
+      <text x="172.5" y="204">350 µs</text><text x="322.5" y="204">1050 µs</text>
+      <text x="547.5" y="204">1050 µs</text><text x="697.5" y="204">350 µs</text>
+    </g>
+  </g>
+</svg>

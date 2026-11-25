@@ -1,8 +1,8 @@
 # ESPHome CC1101 Remote
 
-My outdoor string lights already had a perfectly good two-button remote. To bring them into Home Assistant, I built a second remote that speaks the same radio protocol. That gives you a dashboard switch you can use in a sunset automation, while the original remote still works.
+My outdoor string lights already had a perfectly good two-button remote. To bring them into Home Assistant, I built a second remote that speaks the same radio protocol. That gives you a dashboard switch you can use in a [sunset automation](https://www.home-assistant.io/docs/automation/trigger/#sun-trigger), while the original remote still works.
 
-An **ESP32** connects to Home Assistant over Wi-Fi. A [CC1101](https://esphome.io/components/cc1101/) is the radio that listens to the original remote and later sends the same kind of signal. Once set up, the whole trip from tapping **ON** to lighting up the porch happens locally.
+An **ESP32** connects to Home Assistant over Wi-Fi using the [encrypted ESPHome API](https://esphome.io/components/api/). A [CC1101](https://esphome.io/components/cc1101/) is the radio that listens to the original remote and later sends the same kind of signal. Once set up, the whole trip from tapping **ON** to lighting up the porch happens locally.
 
 ```mermaid
 flowchart LR
@@ -13,6 +13,8 @@ flowchart LR
 ```
 
 The lights don’t send an acknowledgment. Home Assistant displays the last command it sent, so using the handheld remote can leave the dashboard out of sync.
+
+**Jump to your next step** · [Wire the radio](#1-connect-the-radio) · [Set up PowerShell](#windows-powershell) · [Set up macOS or Linux](#macos-or-linux-terminal) · [Capture a button](#3-capture-a-button-press) · [Pair with Home Assistant](#4-put-the-control-in-home-assistant)
 
 ## Why listen first?
 
@@ -25,11 +27,18 @@ Here’s what I heard from the string lights remote using ASK/OOK, a modulation 
 | ON | `00110010010011111001110000011101` | 5 of 5 matched |
 | OFF | `00110010010011111010001100100100` | 5 of 5 matched |
 
-Both messages decoded as **RC Switch protocol 1**. Those are the codes in the working example. For a different light or a ceiling fan, start with a fresh capture.
+Both messages decoded as [RC Switch protocol 1](https://github.com/sui77/rc-switch/blob/master/RCSwitch.cpp). The diagram shows the protocol’s nominal timing for two example bits. The table above contains the [captured ON and OFF codes](tests/fixtures/string-lights.json).
+
+![A zero uses a short carrier pulse and a long gap. A one uses a long carrier pulse and a short gap.](docs/images/ook-pulses.svg)
+
+You can see how the [lights configuration](outdoor-string-lights.yaml) chooses the right message when you tap the switch. For a different light or a ceiling fan, start with a fresh capture.
 
 ## 1. Connect the radio
 
-You’ll need an ESP32-WROOM-32 development board, a USB data cable, a CC1101 module with an antenna suited to the frequency you want to receive, and jumper wires. With USB unplugged, wire the module by its printed pin labels. Power the CC1101 from **3.3 V**.
+You’ll need an ESP32-WROOM-32 development board, a USB data cable, a [CC1101](https://www.ti.com/product/CC1101) module with an antenna suited to the frequency you want to receive, and jumper wires. With USB unplugged, wire the module by its printed pin labels.
+
+> [!IMPORTANT]
+> Use the **3V3** pin to power the CC1101. Check the pin labels on your module before connecting power.
 
 | CC1101 | ESP32 | What the wire does |
 | --- | --- | --- |
@@ -50,9 +59,9 @@ Home Assistant can run on a different machine. For setup, use the computer plugg
 
 | Your computer | Where to run the guide | What the USB port often looks like |
 | --- | --- | --- |
-| macOS | Terminal | `/dev/cu.usbserial-0001` or `/dev/cu.SLAB_USBtoUART` |
-| Linux | Your terminal | `/dev/ttyUSB0` or `/dev/ttyACM0` |
-| Windows | PowerShell | `COM3`, `COM4`, or another port in Device Manager |
+| macOS | [Terminal](#macos-or-linux-terminal) | `/dev/cu.usbserial-0001` or `/dev/cu.SLAB_USBtoUART` |
+| Linux | [Your terminal](#macos-or-linux-terminal) | `/dev/ttyUSB0` or `/dev/ttyACM0` |
+| Windows | [PowerShell](#windows-powershell) | `COM3`, `COM4`, or another port in Device Manager |
 
 ### Windows PowerShell
 
@@ -154,7 +163,7 @@ $Freq = '433.92MHz'
 .\.venv\Scripts\python.exe record.py $Port lights-on
 ```
 
-The recorder prints the path to a timestamped file in `captures/`. Leave the remote untouched for a few seconds to get a baseline. Tap **ON** five times, about two seconds apart, then stop recording with Ctrl+C. Repeat with the label `lights-off` and the **OFF** button. Look for the protocol and data in lines containing `Received RCSwitch`. Preserve leading zeros when copying a code.
+The [USB recorder](record.py) prints the path to a timestamped file in `captures/`. Leave the remote untouched for a few seconds to get a baseline. Tap **ON** five times, about two seconds apart, then stop recording with Ctrl+C. Repeat with the label `lights-off` and the **OFF** button. Look for the protocol and data in lines containing `Received RCSwitch`. ESPHome’s [receiver documentation](https://esphome.io/components/remote_receiver/) explains the available decoders and raw pulse output. Preserve leading zeros when copying a code.
 
 **No frequency label?** The [frequency survey](rf-survey.yaml) samples a list of candidate frequencies and reports approximate signal strength in dBm. A rise that coincides with several button presses gives you a frequency to investigate. For repeated tuning from Home Assistant, the [LAN listener](rf-receive-lan.yaml) provides a `tune_receiver` action that accepts integer Hz. It uses the local Wi-Fi and encryption settings described below.
 
