@@ -4,6 +4,7 @@ substitutions:
 
 packages:
   hardware: !include packages/radio.yaml
+  minka: !include packages/minka.yaml
 
 esphome:
   includes: [packages/rf_bands.h]

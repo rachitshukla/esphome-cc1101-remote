@@ -200,3 +200,19 @@ Run `make check` for configuration checks and host regression tests. Run `make v
 ## License
 
 [MIT](LICENSE)
+
+## Minka Aire DL-4111G-01
+
+The combined controller exposes a three-speed fan and four momentary light
+buttons. Stop affects only the fan. A tap of either light button toggles the
+light. Dim and Brighten send approximately one second of repeated frames.
+Home Assistant displays the last commanded fan state.
+
+The receive-only capture at 303.875 MHz ASK/OOK produced a dominant 12-bit
+message across five separate taps for every button. The eight leading address
+bits were zero for this remote. Stop, low, medium, high, dim and brighten
+ended in A, 2, 4, 8, 5 and 9 respectively (hex). Long presses repeated the
+light command and ended with zero frames. The initial transmit settings
+use 330/670 microsecond pulses, about 11.7 ms between frames, seven command
+frames for a tap, and two trailing zero frames. Physical testing of the
+combined controller is needed to confirm fan response and dimming duration.

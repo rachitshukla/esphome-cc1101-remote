@@ -1,0 +1,49 @@
+esphome:
+  includes: [packages/minka.h]
+
+script:
+  - id: send_minka
+    parameters:
+      command: int
+      hold: bool
+    then:
+      - if:
+          condition:
+            lambda: return id(ready_for_commands);
+          then:
+            - globals.set:
+                id: next_tx_hz
+                value: '303875000'
+            - remote_transmitter.transmit_raw:
+                code: !lambda return minka::waveform(command, hold);
+                carrier_frequency: 0Hz
+
+fan:
+  - platform: template
+    id: minka_fan
+    name: Minka Aire Fan
+    speed_count: 3
+    restore_mode: RESTORE_DEFAULT_OFF
+    on_state:
+      - script.execute:
+          id: send_minka
+          command: !lambda return minka::fan_command(x->state, x->speed);
+          hold: false
+
+button:
+  - platform: template
+    name: Fan Light Dim Button Tap
+    on_press:
+      - script.execute: {id: send_minka, command: !lambda 'return minka::DIM;', hold: false}
+  - platform: template
+    name: Fan Light Brighten Button Tap
+    on_press:
+      - script.execute: {id: send_minka, command: !lambda 'return minka::BRIGHTEN;', hold: false}
+  - platform: template
+    name: Fan Light Dim
+    on_press:
+      - script.execute: {id: send_minka, command: !lambda 'return minka::DIM;', hold: true}
+  - platform: template
+    name: Fan Light Brighten
+    on_press:
+      - script.execute: {id: send_minka, command: !lambda 'return minka::BRIGHTEN;', hold: true}
