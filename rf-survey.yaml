@@ -1,0 +1,53 @@
+esphome:
+  name: fan-rf-survey
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  baud_rate: 115200
+
+spi:
+  clk_pin: GPIO18
+  mosi_pin: GPIO23
+  miso_pin: GPIO19
+
+cc1101:
+  id: radio
+  cs_pin: GPIO5
+  frequency: 303.875MHz
+  modulation_type: ASK/OOK
+  filter_bandwidth: 101kHz
+  packet_mode: false
+
+# Sample each frequency after one full dwell time for the receiver to settle.
+# One report per sweep keeps the USB output small and shows the board is alive.
+interval:
+  - interval: 20ms
+    then:
+      - lambda: |-
+          static constexpr uint32_t frequencies[] = {303875000, 304000000, 315000000, 433000000, 433920000};
+          static unsigned channel = 0;
+          static bool started = false;
+          static float dbm[5]{};
+          auto *receiver = id(radio);
+          if (receiver->is_failed()) {
+            return;
+          }
+          if (started) {
+            receiver->enable();
+            receiver->transfer_byte(0xF4);  // CC1101 RSSI status register
+            const int raw = receiver->transfer_byte(0);
+            receiver->disable();
+            const int signed_rssi = raw < 128 ? raw : raw - 256;
+            dbm[channel] = signed_rssi * 0.5f - 74.0f;
+            channel = (channel + 1) % 5;
+            if (channel == 0) {
+              ESP_LOGI("survey", "ms=%u approx_dBm 303.875=%.1f 304=%.1f 315=%.1f 433=%.1f 433.92=%.1f",
+                       static_cast<unsigned>(millis()), dbm[0], dbm[1], dbm[2], dbm[3], dbm[4]);
+            }
+          }
+          receiver->set_frequency(frequencies[channel]);
+          started = true;

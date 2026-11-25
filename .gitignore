@@ -1,0 +1,12 @@
+.venv/
+.pio/
+
+flash-backup.*/
+.esphome/
+.venv-esphome/
+secrets.yaml
+*.log
+*.bin
+captures/
+.DS_Store
+__pycache__/
