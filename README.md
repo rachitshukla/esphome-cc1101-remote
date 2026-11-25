@@ -1,6 +1,6 @@
 # ESPHome CC1101 Remote
 
-Our outdoor string lights already had a perfectly good two-button remote. To bring them into Home Assistant, we built a second remote that speaks the same radio protocol. That gives you a dashboard switch you can use in a sunset automation, while the original remote still works.
+My outdoor string lights already had a perfectly good two-button remote. To bring them into Home Assistant, I built a second remote that speaks the same radio protocol. That gives you a dashboard switch you can use in a sunset automation, while the original remote still works.
 
 An **ESP32** connects to Home Assistant over Wi-Fi. A **CC1101** is the radio that listens to the original remote and later sends the same kind of signal. Once set up, the whole trip from tapping **ON** to lighting up the porch happens locally.
 
@@ -18,7 +18,7 @@ The lights don’t send an acknowledgment. Home Assistant displays the last comm
 
 A frequency tells you **where to listen**. The pattern of pulses tells you **which button was pressed**. Two remotes labeled 433.92 MHz can speak different protocols or send different codes. Listening first lets you find out what *your* appliance understands.
 
-Here’s what we heard from the string lights remote using ASK/OOK, a modulation that encodes data by switching the radio carrier on and off:
+Here’s what I heard from the string lights remote using ASK/OOK, a modulation that encodes data by switching the radio carrier on and off:
 
 | Button | Decoded 32-bit message | Independent presses |
 | --- | --- | --- |
