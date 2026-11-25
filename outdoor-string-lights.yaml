@@ -4,6 +4,7 @@ esphome:
   on_boot:
     priority: -100
     then:
+      - cc1101.set_idle
       - lambda: id(ready_for_commands) = true;
 
 esp32:
@@ -40,7 +41,7 @@ remote_transmitter:
       - cc1101.begin_tx
   on_complete:
     then:
-      - cc1101.begin_rx
+      - cc1101.set_idle
 
 globals:
   - id: ready_for_commands
@@ -56,23 +57,14 @@ output:
           condition:
             lambda: return id(ready_for_commands);
           then:
-            - if:
-                condition:
-                  lambda: return state;
-                then:
-                  - remote_transmitter.transmit_rc_switch_raw:
-                      code: '00110010010011111001110000011101'
-                      protocol: 1
-                      repeat:
-                        times: 5
-                        wait_time: 0us
-                else:
-                  - remote_transmitter.transmit_rc_switch_raw:
-                      code: '00110010010011111010001100100100'
-                      protocol: 1
-                      repeat:
-                        times: 5
-                        wait_time: 0us
+            - remote_transmitter.transmit_rc_switch_raw:
+                code: !lambda |-
+                  return state ? "00110010010011111001110000011101"
+                               : "00110010010011111010001100100100";
+                protocol: 1
+                repeat:
+                  times: 5
+                  wait_time: 0us
 
 light:
   - platform: binary
