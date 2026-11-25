@@ -1,0 +1,33 @@
+# Optional receiver for tuning from Home Assistant during remote discovery.
+packages:
+  receiver: !include rf-receive.yaml
+
+esphome:
+  name: fan-rf-receive-lan
+  includes: [packages/rf_bands.h]
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  reboot_timeout: 0s
+
+api:
+  reboot_timeout: 0s
+  encryption:
+    key: !secret string_lights_api_key
+  actions:
+    - action: tune_receiver
+      variables:
+        frequency_hz: int
+      then:
+        - lambda: |-
+            if (!rf_bands::supported(frequency_hz)) {
+              ESP_LOGW("capture", "Unsupported CC1101 frequency: %d Hz", frequency_hz);
+              return;
+            }
+            if (id(radio)->is_failed()) {
+              ESP_LOGW("capture", "Radio unavailable");
+              return;
+            }
+            id(radio)->set_frequency(frequency_hz);
+            ESP_LOGI("capture", "Receiver tuned to %d Hz", frequency_hz);

@@ -1,4 +1,52 @@
-# ESP32 and CC1101 SPI diagnostic
+# Outdoor string lights and CC1101 radio tools
+
+The Home Assistant controller is `outdoor-string-lights.yaml`. It uses the
+local encrypted ESPHome API and the ON/OFF codes measured at 433.92 MHz.
+The other firmware targets are for hardware checks and remote discovery.
+
+## Adding another remote
+
+1. Look for a frequency or model label on the remote. To survey candidate
+   frequencies, edit the integer-Hz list `survey_frequencies_hz` at the top
+   of `rf-survey.yaml`. Each output row pairs the tuned frequency in Hz with
+   its estimated signal strength in dBm. The receiver visits one channel per
+   20 ms interval. Short taps can fall between visits, so compare background
+   readings with several presses.
+2. To capture pulses at one frequency over USB, build the listener with an
+   override, e.g. `.venv-esphome/bin/esphome -s rx_frequency 315MHz compile rf-receive.yaml`.
+   Alternatively, build `rf-receive-lan.yaml` for an encrypted local API and
+   USB logging. Its Home Assistant `tune_receiver` action accepts
+   `frequency_hz` (integer Hz) during capture. It starts on the configured
+   frequency again after a reboot. After tuning, allow two seconds for the
+   previous pulse and signal-strength windows to clear before pressing a button.
+   Installing a diagnostic on the same ESP32
+   replaces the lights controller until the controller is uploaded again.
+3. Start `.venv/bin/python record.py /dev/cu.usbserial-0001 fan-on` and let
+   it collect a quiet baseline. Press one labeled button repeatedly. Check
+   for a consistent code, protocol, pulse timing, and rise in signal level.
+   The receiver and antenna's matching network can limit useful frequency coverage.
+4. For a confirmed fixed-code ASK/OOK remote decoded by RC Switch, add the
+   Home Assistant entity to the **same controller configuration**. In its
+   action list, reuse the include below. Supply the four substitutions from
+   measurements, with the binary code quoted to preserve leading zeros.
+
+```yaml
+then: !include
+  file: packages/send-rc-switch.yaml
+  vars:
+    frequency_hz: ${fan_frequency_hz}
+    command_code: ${fan_on_bits}
+    protocol: ${fan_protocol}
+    repeats: ${fan_repeats}
+```
+
+The command requests its own frequency. The transmitter finishes the
+previous frame, applies the new tuning and power table if the frequency
+changed, sends the repeats, and returns to idle. This action is specific to
+RC Switch encoding. A different fan protocol needs its own verified encoder.
+The controller has no fan entity until a fan command has been identified.
+
+## SPI diagnostic
 
 The firmware resets the radio, reads configuration and status registers,
 checks 32 repeated identity reads, then writes and restores the volatile
@@ -112,5 +160,5 @@ Generate a key locally with openssl rand -base64 32.
 In Home Assistant, open Settings → Devices & services and add the discovered
 ESPHome device. If needed, enter string-lights-radio.local or its LAN IP
 and the encryption key. The light shows the last locally commanded state.
-Five repeats and 0 dBm transmit power are initial settings for a physical
-ON/OFF test. The light controller has provided no state feedback.
+Five repeats and 0 dBm transmit power are the settings used in the successful
+Home Assistant ON/OFF test. The light controller has provided no state feedback.

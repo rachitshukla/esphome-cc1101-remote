@@ -1,24 +1,15 @@
+substitutions:
+  survey_frequencies_hz: [303875000, 304000000, 315000000, 433000000, 433920000]
+
+packages:
+  hardware: !include packages/radio.yaml
+
 esphome:
+  includes: [packages/rf_bands.h, packages/rf_measurement.h]
   name: fan-rf-survey
 
-esp32:
-  board: esp32dev
-  framework:
-    type: esp-idf
-
-logger:
-  baud_rate: 115200
-
-spi:
-  clk_pin: GPIO18
-  mosi_pin: GPIO23
-  miso_pin: GPIO19
-
 cc1101:
-  id: radio
-  cs_pin: GPIO5
-  frequency: 303.875MHz
-  modulation_type: ASK/OOK
+  frequency: ${survey_frequencies_hz[0]}Hz
   filter_bandwidth: 101kHz
   packet_mode: false
 
@@ -28,26 +19,29 @@ interval:
   - interval: 20ms
     then:
       - lambda: |-
-          static constexpr uint32_t frequencies[] = {303875000, 304000000, 315000000, 433000000, 433920000};
-          static unsigned channel = 0;
-          static bool started = false;
-          static float dbm[5]{};
-          auto *receiver = id(radio);
-          if (receiver->is_failed()) {
-            return;
-          }
-          if (started) {
-            receiver->enable();
-            receiver->transfer_byte(0xF4);  // CC1101 RSSI status register
-            const int raw = receiver->transfer_byte(0);
-            receiver->disable();
-            const int signed_rssi = raw < 128 ? raw : raw - 256;
-            dbm[channel] = signed_rssi * 0.5f - 74.0f;
-            channel = (channel + 1) % 5;
-            if (channel == 0) {
-              ESP_LOGI("survey", "ms=%u approx_dBm 303.875=%.1f 304=%.1f 315=%.1f 433=%.1f 433.92=%.1f",
-                       static_cast<unsigned>(millis()), dbm[0], dbm[1], dbm[2], dbm[3], dbm[4]);
+          static constexpr uint32_t frequencies[] = {${survey_frequencies_hz | join(', ')}};
+          static_assert([] {
+            for (auto hz : frequencies) {
+              if (!rf_bands::supported(hz)) return false;
             }
+            return true;
+          }(), "Survey frequency outside the CC1101 bands");
+          static constexpr size_t count = sizeof(frequencies) / sizeof(frequencies[0]);
+          static size_t channel = 0;
+          static float samples[count];
+          auto &receiver = *id(radio);
+          if (receiver.is_failed()) return;
+
+          samples[channel] = rf_measurement::read_dbm(receiver);
+          if (++channel == count) {
+            channel = 0;
+            // Nine frequency digits and up to six dBm characters per entry.
+            char report[24 * count + 1];
+            size_t pos = 0;
+            for (size_t i = 0; i < count; ++i) {
+              pos += snprintf(report + pos, sizeof(report) - pos, " %u=%.1f",
+                              static_cast<unsigned>(frequencies[i]), samples[i]);
+            }
+            ESP_LOGI("survey", "ms=%u Hz=dBm%s", static_cast<unsigned>(millis()), report);
           }
-          receiver->set_frequency(frequencies[channel]);
-          started = true;
+          if (count > 1) receiver.set_frequency(frequencies[channel]);
