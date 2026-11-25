@@ -28,8 +28,8 @@ int main() {
   assert(minka::DIM == 0x005 && minka::BRIGHTEN == 0x009);
   for (auto command : {0x00A, 0x002, 0x004, 0x008, 0x005, 0x009}) {
     for (bool hold : {false, true}) {
-      auto pulses = minka::waveform(command, hold);
       const unsigned repeats = hold ? 42 : 7;
+      auto pulses = minka::waveform(command, repeats);
       assert(pulses.size() == (repeats + 2) * 26);
       for (unsigned i = 0; i < repeats + 2; ++i) {
         const auto *frame = pulses.data() + 26 * i;
@@ -42,6 +42,30 @@ int main() {
         }
         assert(decoded == (i < repeats ? command : 0));
       }
+    }
+  }
+  using Timing = minka::Dimmer<500, 300>;
+  minka::LampEstimate lamp;
+  assert(!Timing::pending(lamp, false, 0.5f));
+  auto toggle = Timing::next(lamp, true, 1.0f);
+  assert(toggle.command == minka::BRIGHTEN && toggle.frames == 7);
+  assert(!Timing::pending(lamp, true, 1.0f));
+  auto dim = Timing::next(lamp, true, 0.5f);
+  assert(dim.command == minka::DIM && dim.frames > toggle.frames);
+  assert(!Timing::pending(lamp, true, 0.5f));
+  auto saved = lamp.brightness;
+  assert(Timing::next(lamp, false, 1.0f).frames == 7);
+  assert(!Timing::pending(lamp, false, 1.0f) && lamp.brightness == saved);
+  assert(Timing::next(lamp, true, 0.5f).frames == 7);
+  assert(!Timing::pending(lamp, true, 0.5f));
+  assert(Timing::next(lamp, true, 1.0f).command == minka::BRIGHTEN);
+  for (int i = 0; i <= 255; ++i) {
+    using Slow = minka::Dimmer<3000, 350>;
+    float target = i / 255.0f;
+    int count = 0;
+    while (Slow::pending(lamp, true, target)) {
+      auto press = Slow::next(lamp, true, target);
+      assert(press.frames > 7 && press.frames <= 42 && ++count < 10);
     }
   }
   using rf_bands::supported;

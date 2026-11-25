@@ -203,10 +203,27 @@ Run `make check` for configuration checks and host regression tests. Run `make v
 
 ## Minka Aire DL-4111G-01
 
-The combined controller exposes a three-speed fan and four momentary light
-buttons. Stop affects only the fan. A tap of either light button toggles the
-light. Dim and Brighten send approximately one second of repeated frames.
-Home Assistant displays the last commanded fan state.
+Home Assistant exposes **Minka Aire Fan** (three speeds and stop) and **Minka
+Aire Fan Light** (power and brightness). For both light controls on a dashboard,
+add a Tile card for the fan light, set the icon tap action to Toggle, and add
+the **Light brightness** feature. The fan light replaces the four momentary
+light buttons. Update any automations that used those buttons.
+
+For the first installation, use the handheld remote to bring the lamp to full
+brightness, then tap it off. The controller starts with that reference and
+assumes the receiver remembers brightness when toggled off and on. It saves
+its estimated position locally. A power change sends one tap. Moving the
+slider sends a timed brighten or dim hold. The lamp gives no feedback, so
+brightness is approximate. If someone uses the handheld remote or the lamp
+misses a command, align the two again: set Home Assistant to 100% and off,
+then use the handheld remote to leave the lamp at full brightness and off.
+
+The initial settings in `packages/minka.yaml` use the owner's estimated
+500 ms of travel between brightness endpoints and a provisional 300 ms
+before a hold starts dimming. To calibrate, observe the delay until the lamp
+first changes, then time the remaining travel to the opposite endpoint.
+Set `minka_hold_lead_ms` and `minka_ramp_ms` respectively. If small slider
+changes toggle power, check the hold delay first.
 
 The receive-only capture at 303.875 MHz ASK/OOK produced a dominant 12-bit
 message across five separate taps for every button. The eight leading address
@@ -214,5 +231,5 @@ bits were zero for this remote. Stop, low, medium, high, dim and brighten
 ended in A, 2, 4, 8, 5 and 9 respectively (hex). Long presses repeated the
 light command and ended with zero frames. The initial transmit settings
 use 330/670 microsecond pulses, about 11.7 ms between frames, seven command
-frames for a tap, and two trailing zero frames. Physical testing of the
-combined controller is needed to confirm fan response and dimming duration.
+frames for a tap, and two trailing zero frames. The owner confirmed fan speed control on the appliance. The light slider still
+needs calibration on the lamp.

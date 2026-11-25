@@ -1,3 +1,7 @@
+substitutions:
+  minka_ramp_ms: "500"       # Owner's estimate for travel from minimum to maximum
+  minka_hold_lead_ms: "300"  # Initial estimate for tap-to-hold recognition
+
 esphome:
   includes: [packages/minka.h]
 
@@ -5,7 +9,7 @@ script:
   - id: send_minka
     parameters:
       command: int
-      hold: bool
+      frames: int
     then:
       - if:
           condition:
@@ -15,8 +19,44 @@ script:
                 id: next_tx_hz
                 value: '303875000'
             - remote_transmitter.transmit_raw:
-                code: !lambda return minka::waveform(command, hold);
+                code: !lambda return minka::waveform(command, frames);
                 carrier_frequency: 0Hz
+
+  - id: apply_fan_light
+    mode: single
+    then:
+      - delay: 150ms
+      - while:
+          condition:
+            lambda: |-
+              using Timing = minka::Dimmer<${minka_ramp_ms}, ${minka_hold_lead_ms}>;
+              const auto &target = id(minka_light).remote_values;
+              return Timing::pending({id(lamp_on), id(lamp_level)}, target.is_on(), target.get_brightness());
+          then:
+            - lambda: |-
+                using Timing = minka::Dimmer<${minka_ramp_ms}, ${minka_hold_lead_ms}>;
+                const auto &target = id(minka_light).remote_values;
+                minka::LampEstimate lamp{id(lamp_on), id(lamp_level)};
+                auto press = Timing::next(lamp, target.is_on(), target.get_brightness());
+                id(send_minka).execute(press.command, press.frames);
+                id(lamp_on) = lamp.on;
+                id(lamp_level) = lamp.brightness;
+                // Allow both release frames and a gap before the next press.
+                id(lamp_wait_ms) = (press.frames + minka::RELEASE_FRAMES) * minka::FRAME_US / 1000 + 120;
+            - delay: !lambda return id(lamp_wait_ms);
+
+globals:
+  - id: lamp_on
+    type: bool
+    restore_value: true
+    initial_value: 'false'
+  - id: lamp_level
+    type: uint8_t
+    restore_value: true
+    initial_value: '255'
+  - id: lamp_wait_ms
+    type: int
+    initial_value: '0'
 
 fan:
   - platform: template
@@ -28,22 +68,26 @@ fan:
       - script.execute:
           id: send_minka
           command: !lambda return minka::fan_command(x->state, x->speed);
-          hold: false
+          frames: 7
 
-button:
+output:
   - platform: template
-    name: Fan Light Dim Button Tap
-    on_press:
-      - script.execute: {id: send_minka, command: !lambda 'return minka::DIM;', hold: false}
-  - platform: template
-    name: Fan Light Brighten Button Tap
-    on_press:
-      - script.execute: {id: send_minka, command: !lambda 'return minka::BRIGHTEN;', hold: false}
-  - platform: template
-    name: Fan Light Dim
-    on_press:
-      - script.execute: {id: send_minka, command: !lambda 'return minka::DIM;', hold: true}
-  - platform: template
-    name: Fan Light Brighten
-    on_press:
-      - script.execute: {id: send_minka, command: !lambda 'return minka::BRIGHTEN;', hold: true}
+    id: minka_light_output
+    type: float
+    # Handle the requested state once below, including HA transition requests.
+    write_action: []
+
+light:
+  - platform: monochromatic
+    id: minka_light
+    name: Minka Aire Fan Light
+    output: minka_light_output
+    restore_mode: RESTORE_DEFAULT_OFF
+    default_transition_length: 0s
+    gamma_correct: 1.0
+    on_state:
+      - if:
+          condition:
+            lambda: return id(ready_for_commands) && !id(apply_fan_light).is_running();
+          then:
+            - script.execute: apply_fan_light

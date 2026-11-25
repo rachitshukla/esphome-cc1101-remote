@@ -18,8 +18,10 @@ class RadioTest(unittest.TestCase):
         profile = yaml.load(Path(os.environ["RF_TEST_CONFIG"]).read_text(), Loader=yaml.BaseLoader)
         expected = json.loads((TESTS / "fixtures/string-lights.json").read_text())
         self.assertEqual(float(profile["cc1101"][0]["frequency"]), expected["frequency_hz"])
-        light = profile["light"][0]
-        self.assertEqual(light["name"], "Outdoor String Lights")
+        light = next(l for l in profile["light"] if l["name"] == "Outdoor String Lights")
+        fan_light = next(l for l in profile["light"] if l["id"] == "minka_light")
+        self.assertEqual(fan_light["platform"], "monochromatic")
+        self.assertEqual(fan_light["restore_mode"], "RESTORE_DEFAULT_OFF")
         output = next(o for o in profile["output"] if o["id"] == light["output"])
         guard, = output["write_action"]["then"]
         stage, send = guard["if"]["then"]
