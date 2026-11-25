@@ -46,27 +46,45 @@ You’ll need an ESP32-WROOM-32 development board, a USB data cable, a CC1101 mo
 
 ### Choose your terminal
 
-Home Assistant can run on a different machine. For setup, use the computer plugged into the ESP32. I tested the full workflow on an Intel Mac. The Linux and Windows/WSL 2 paths below use the same Unix tools and still need hardware testing on those platforms.
+Home Assistant can run on a different machine. For setup, use the computer plugged into the ESP32. I tested the full workflow on an Intel Mac. The Linux and Windows instructions still need hardware testing on those platforms.
 
 | Your computer | Where to run the guide | What the USB port often looks like |
 | --- | --- | --- |
 | macOS | Terminal | `/dev/cu.usbserial-0001` or `/dev/cu.SLAB_USBtoUART` |
 | Linux | Your terminal | `/dev/ttyUSB0` or `/dev/ttyACM0` |
-| Windows | A Linux terminal in WSL 2 | Windows may show `COM3`; after USB attachment, WSL shows a Linux device such as `/dev/ttyUSB0` |
+| Windows | PowerShell | `COM3`, `COM4`, or another port in Device Manager |
 
-<details>
-<summary>Windows: connect your ESP32 to WSL 2</summary>
+### Windows PowerShell
 
-The project's Makefile uses Unix executable paths, and the verification script uses Unix file locking. Use WSL 2 for the whole walkthrough, including the builds. Install [WSL 2](https://learn.microsoft.com/en-us/windows/wsl/install) and follow [Microsoft’s USB setup guide](https://learn.microsoft.com/en-us/windows/wsl/connect-usb) to install `usbipd-win`.
+Install [Git for Windows](https://git-scm.com/downloads/win) and [Python for Windows](https://www.python.org/downloads/windows/) with the `py` launcher. The following commands use Python 3.13 for ESPHome and 3.9 for the diagnostic, matching the project's tested interpreter versions. Run each command in a regular PowerShell window. Calling the executables directly lets you skip virtual environment activation.
 
-1. Plug in the ESP32 and keep a WSL terminal open.
-2. In **Administrator PowerShell**, run `usbipd list`. Find the USB-to-serial bridge by unplugging and reconnecting it. Run `usbipd bind --busid 4-4`, replacing `4-4` with its bus ID.
-3. In **PowerShell**, run `usbipd attach --wsl --busid 4-4` with that same ID.
-4. Switch to the **WSL terminal** for the rest of the guide. Clone the project under your Linux home directory and install the prerequisites inside WSL. If you unplug the ESP32, attach it again before the next upload.
+```powershell
+git clone https://github.com/rachitshukla/esphome-cc1101-remote.git
+cd esphome-cc1101-remote
+py -3.13 -m venv .venv-esphome
+.\.venv-esphome\Scripts\python.exe -m pip install -r requirements-esphome.txt
+py -3.9 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-diagnostic.txt
+```
 
-</details>
+Plug in the board. List the ports, replace `COM3` with yours, and check the chip identity. Keep this window open so you can reuse `$Port` later.
 
-### Install the tools and find your board
+```powershell
+.\.venv\Scripts\python.exe -m serial.tools.list_ports -v
+$Port = 'COM3'
+.\.venv\Scripts\python.exe -m esptool --port $Port --no-stub flash_id
+```
+
+**Uploading replaces the board's firmware.** After confirming the board, install the SPI diagnostic and open its monitor:
+
+```powershell
+.\.venv\Scripts\pio.exe run -t upload --upload-port $Port
+.\.venv\Scripts\pio.exe device monitor --port $Port --baud 115200
+```
+
+Look for `PASS: CC1101 SPI reads and writes verified`, then close the monitor with Ctrl+C and continue to **3. Capture a button press**.
+
+### macOS or Linux terminal
 
 Install Git, Make, a C++17 compiler, and Python with virtual environment support. My tested versions were Python 3.13.13 for [ESPHome](https://esphome.io/install/) and 3.9.6 for the SPI diagnostic. By default, `make setup` looks for `python3.13` and `python3`. If yours have different names, pass them explicitly, for example `make setup ESPHOME_PYTHON=python3.13 DIAGNOSTIC_PYTHON=python3.9`.
 
@@ -77,7 +95,7 @@ make setup
 make check
 ```
 
-Run this once with the board unplugged and again after connecting it. On Windows, do the second check after attaching the board to WSL. The new entry is your port.
+Run this once with the board unplugged and again after connecting it. The new entry is your port.
 
 ```sh
 .venv/bin/python -m serial.tools.list_ports -v
@@ -88,11 +106,11 @@ Uncomment the matching `PORT=...` line below, set it to that entry, and reuse it
 ```sh
 # Choose one and substitute the port you found:
 # PORT=/dev/cu.usbserial-0001   # macOS
-# PORT=/dev/ttyUSB0             # Linux or WSL 2
+# PORT=/dev/ttyUSB0             # Linux
 .venv/bin/python -m esptool --port "${PORT:?Set PORT to your serial device first}" --no-stub flash_id
 ```
 
-If Linux or WSL lists the board but reports “permission denied,” check your account’s serial-device group permissions. [Espressif’s serial connection guide](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/get-started/establish-serial-connection.html)
+If Linux lists the board but reports “permission denied,” check your account’s serial-device group permissions. [Espressif’s serial connection guide](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/get-started/establish-serial-connection.html)
 
 **Every upload in this guide replaces the firmware on the selected board.** Once you’ve confirmed the port and are ready to replace its firmware, install the [SPI diagnostic](src/main.cpp) and open its USB monitor:
 
@@ -118,13 +136,22 @@ flowchart TD
     Compare -->|"No"| Inspect["Inspect pulse timings and revisit receiver settings"]
 ```
 
-For a labeled remote, try the [USB listener](rf-receive.yaml). Set `FREQ` to the frequency on the label. Compile and upload the listener, then start the recorder:
+For a labeled remote, try the [USB listener](rf-receive.yaml). Set `FREQ` to the frequency on the label. Compile and upload the listener, then start the recorder. On **macOS or Linux**, use:
 
 ```sh
 FREQ=433.92MHz
 .venv-esphome/bin/esphome -s rx_frequency "$FREQ" compile rf-receive.yaml
 .venv-esphome/bin/esphome -s rx_frequency "$FREQ" upload rf-receive.yaml --device "$PORT"
 .venv/bin/python record.py "$PORT" lights-on
+```
+
+In **Windows PowerShell**, use:
+
+```powershell
+$Freq = '433.92MHz'
+.\.venv-esphome\Scripts\esphome.exe -s rx_frequency $Freq compile rf-receive.yaml
+.\.venv-esphome\Scripts\esphome.exe -s rx_frequency $Freq upload rf-receive.yaml --device $Port
+.\.venv\Scripts\python.exe record.py $Port lights-on
 ```
 
 The recorder prints the path to a timestamped file in `captures/`. Leave the remote untouched for a few seconds to get a baseline. Tap **ON** five times, about two seconds apart, then stop recording with Ctrl+C. Repeat with the label `lights-off` and the **OFF** button. Look for the protocol and data in lines containing `Received RCSwitch`. Preserve leading zeros when copying a code.
@@ -134,13 +161,15 @@ The recorder prints the path to a timestamped file in `captures/`. Leave the rem
 ## 4. Put the control in Home Assistant
 
 1. Open [the lights controller](outdoor-string-lights.yaml). For your own device, enter the frequency, protocol, and ON/OFF codes from your captures. The tested lights profile sends each command five times.
-2. Create an untracked `secrets.yaml` next to the controller file. Set `wifi_ssid`, `wifi_password`, and `string_lights_api_key`. Run `openssl rand -base64 32` locally to generate the key. Home Assistant will ask for the same key when pairing.
-3. Install the controller with `.venv-esphome/bin/esphome run outdoor-string-lights.yaml --device "$PORT"`. This replaces the listener and starts the Wi-Fi controller.
+2. Create an untracked `secrets.yaml` next to the controller file. Set `wifi_ssid`, `wifi_password`, and `string_lights_api_key`. Generate the key locally with `openssl rand -base64 32` on macOS/Linux or `py -3.13 -c "import base64, secrets; print(base64.b64encode(secrets.token_bytes(32)).decode())"` in PowerShell. Home Assistant will ask for the same key when pairing.
+3. Install the controller with `.venv-esphome/bin/esphome run outdoor-string-lights.yaml --device "$PORT"` on macOS/Linux or `.\.venv-esphome\Scripts\esphome.exe run outdoor-string-lights.yaml --device $Port` in PowerShell. This replaces the listener and starts the Wi-Fi controller.
 4. To pair through the [ESPHome integration](https://www.home-assistant.io/integrations/esphome/#configuration), open **Settings → Devices & services → Add integration → ESPHome**. Select the discovered device or enter `string-lights-radio.local`. Enter the encryption key, then try ON and OFF while watching the actual lights.
 
 **Adding a fan later?** Capture one labeled button at a time. If it uses compatible fixed-code RC Switch messages, add its controls to the same controller using the [shared transmit action](packages/send-rc-switch.yaml). Each command supplies its own frequency so the ESP32 can alternate between the lights and fan. Check both appliances when testing the switch between them.
 
 ## Working on the code
+
+The contributor checks use Unix paths and file locking. On Windows, run them in [WSL 2](https://learn.microsoft.com/en-us/windows/wsl/install) with its own checkout and Python environments. These checks can run with the board unplugged.
 
 Run `make check` for configuration checks and host regression tests. Run `make verify` to also compile all four ESPHome targets and the SPI diagnostic. Both use dummy credentials and keep verification artifacts under `.verify/`. Contributor guidance is in [AGENTS.md](AGENTS.md).
 
