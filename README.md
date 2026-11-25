@@ -14,7 +14,22 @@ flowchart LR
 
 The lights don’t send an acknowledgment. Home Assistant displays the last command it sent, so using the handheld remote can leave the dashboard out of sync.
 
-**Jump to your next step** · [Wire the radio](#1-connect-the-radio) · [Set up PowerShell](#windows-powershell) · [Set up macOS or Linux](#macos-or-linux-terminal) · [Capture a button](#3-capture-a-button-press) · [Pair with Home Assistant](#4-put-the-control-in-home-assistant)
+## Start with Claude Code or Codex
+
+Once you’ve [wired the CC1101](#1-connect-the-radio) and plugged the ESP32 into USB, open a terminal on **the computer connected to the board**. These two commands work in macOS Terminal, Linux, and Windows PowerShell with Git installed.
+
+```sh
+git clone https://github.com/rachitshukla/esphome-cc1101-remote.git
+cd esphome-cc1101-remote
+```
+
+From that folder, launch your installed coding assistant with `claude` or `codex` and paste this prompt:
+
+> My ESP32 and CC1101 are connected. Help me get my remote working in Home Assistant. Use this repo’s instructions, set up the tools for my computer, and identify my board over USB. Before each upload, show me which board and firmware you picked and ask me first. Verify the radio, then tell me when to press each button. Use what you measure from my remote. When it’s time to pair, show me where to enter my credentials locally.
+
+The first result to expect is a **USB port, ESP32 model, and flash size**. After you approve the diagnostic upload, the assistant can check the radio and report the actual SPI register readings. Both assistants use the same [hardware and credential instructions](AGENTS.md).
+
+**Prefer to run the commands yourself?** [Windows PowerShell](#windows-powershell) · [macOS or Linux](#macos-or-linux-terminal) · [Capture a button](#3-capture-a-button-press) · [Pair with Home Assistant](#4-put-the-control-in-home-assistant)
 
 ## Why listen first?
 
