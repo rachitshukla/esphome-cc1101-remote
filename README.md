@@ -4,6 +4,26 @@ The Home Assistant controller is `outdoor-string-lights.yaml`. It uses the
 local encrypted ESPHome API and the ON/OFF codes measured at 433.92 MHz.
 The other firmware targets are for hardware checks and remote discovery.
 
+## Reproduce the builds
+
+On the tested Intel Mac, the ESPHome environment uses Python 3.13.13,
+ESPHome 2026.10.2 and pySerial 3.5. The SPI diagnostic uses Python 3.9.6,
+PlatformIO 6.2.0 and esptool 4.14.0. Install Python, Make and a C++17
+compiler first. Override `ESPHOME_PYTHON` or `DIAGNOSTIC_PYTHON` on the
+make command line if those interpreters have different names on your Mac.
+
+```sh
+make setup
+make check
+make verify
+```
+
+`check` validates four ESPHome configurations and runs host regressions.
+`verify` also builds each ESPHome target and the SPI diagnostic in sequence.
+Both use dummy credentials and keep their files under `.verify/`. Keep this
+directory for faster repeat builds. Use the production configuration and
+real local secrets for any separately approved upload.
+
 ## Adding another remote
 
 1. Look for a frequency or model label on the remote. To survey candidate
@@ -44,7 +64,10 @@ The command requests its own frequency. The transmitter finishes the
 previous frame, applies the new tuning and power table if the frequency
 changed, sends the repeats, and returns to idle. This action is specific to
 RC Switch encoding. A different fan protocol needs its own verified encoder.
-The controller has no fan entity until a fan command has been identified.
+Add each fan command only once labeled presses produce a repeatable frame or
+pulse pattern at the measured receiver settings. After an approved upload,
+physically check lights ON/OFF, then alternate light and fan commands and
+observe both devices. Record the tested Git commit and results.
 
 ## SPI diagnostic
 

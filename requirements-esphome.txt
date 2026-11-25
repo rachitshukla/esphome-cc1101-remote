@@ -1,0 +1,2 @@
+esphome==2026.10.2
+pyserial==3.5

@@ -10,3 +10,4 @@ secrets.yaml
 captures/
 .DS_Store
 __pycache__/
+.verify/
