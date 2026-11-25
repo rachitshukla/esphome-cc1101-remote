@@ -2,7 +2,7 @@
 
 My outdoor string lights already had a perfectly good two-button remote. To bring them into Home Assistant, I built a second remote that speaks the same radio protocol. That gives you a dashboard switch you can use in a sunset automation, while the original remote still works.
 
-An **ESP32** connects to Home Assistant over Wi-Fi. A **CC1101** is the radio that listens to the original remote and later sends the same kind of signal. Once set up, the whole trip from tapping **ON** to lighting up the porch happens locally.
+An **ESP32** connects to Home Assistant over Wi-Fi. A [CC1101](https://esphome.io/components/cc1101/) is the radio that listens to the original remote and later sends the same kind of signal. Once set up, the whole trip from tapping **ON** to lighting up the porch happens locally.
 
 ```mermaid
 flowchart LR
@@ -44,7 +44,7 @@ You’ll need an ESP32-WROOM-32 development board, a USB data cable, a CC1101 mo
 
 ## 2. Check the connection
 
-On your computer, install Git, Make, a C++17 compiler, and Python. The tested Intel Mac used Python 3.13.13 for ESPHome and 3.9.6 for the SPI diagnostic. If your Python executables have different names, set `ESPHOME_PYTHON` and `DIAGNOSTIC_PYTHON` when you run `make setup`.
+On your computer, install Git, Make, a C++17 compiler, and Python. The tested Intel Mac used Python 3.13.13 for [ESPHome](https://esphome.io/install/) and 3.9.6 for the SPI diagnostic. If your Python executables have different names, set `ESPHOME_PYTHON` and `DIAGNOSTIC_PYTHON` when you run `make setup`.
 
 ```sh
 git clone https://github.com/rachitshukla/esphome-cc1101-remote.git
@@ -53,7 +53,7 @@ make setup
 make check
 ```
 
-Plug in the ESP32. On macOS, run `ls /dev/cu.*` and look for the port that appears when you connect it. Replace the example port below with yours. The first command sets a shell variable you can reuse throughout this guide. The second asks the board for its chip type and flash size.
+Plug in the ESP32. On macOS, run `ls /dev/cu.*` and look for the port that appears when you connect it. Replace the example port below with yours. The first command sets a shell variable you can reuse throughout this guide. The second uses [Espressif’s esptool](https://docs.espressif.com/projects/esptool/en/release-v4/esp32/esptool/basic-commands.html) to read the chip type and flash size.
 
 ```sh
 PORT=/dev/cu.usbserial-0001
@@ -102,7 +102,7 @@ The recorder prints the path to a timestamped file in `captures/`. Leave the rem
 1. Open [the lights controller](outdoor-string-lights.yaml). For your own device, enter the frequency, protocol, and ON/OFF codes from your captures. The tested lights profile sends each command five times.
 2. Create an untracked `secrets.yaml` next to the controller file. Set `wifi_ssid`, `wifi_password`, and `string_lights_api_key`. Run `openssl rand -base64 32` locally to generate the key. Home Assistant will ask for the same key when pairing.
 3. Install the controller with `.venv-esphome/bin/esphome run outdoor-string-lights.yaml --device "$PORT"`. This replaces the listener and starts the Wi-Fi controller.
-4. In Home Assistant, open **Settings → Devices & services → Add integration → ESPHome**. Select the discovered device or enter `string-lights-radio.local`. Enter the encryption key, then try ON and OFF while watching the actual lights.
+4. To pair through the [ESPHome integration](https://www.home-assistant.io/integrations/esphome/#configuration), open **Settings → Devices & services → Add integration → ESPHome**. Select the discovered device or enter `string-lights-radio.local`. Enter the encryption key, then try ON and OFF while watching the actual lights.
 
 **Adding a fan later?** Capture one labeled button at a time. If it uses compatible fixed-code RC Switch messages, add its controls to the same controller using the [shared transmit action](packages/send-rc-switch.yaml). Each command supplies its own frequency so the ESP32 can alternate between the lights and fan. Check both appliances when testing the switch between them.
 
