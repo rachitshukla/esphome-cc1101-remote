@@ -44,7 +44,31 @@ You’ll need an ESP32-WROOM-32 development board, a USB data cable, a CC1101 mo
 
 ## 2. Check the connection
 
-On your computer, install Git, Make, a C++17 compiler, and Python. The tested Intel Mac used Python 3.13.13 for [ESPHome](https://esphome.io/install/) and 3.9.6 for the SPI diagnostic. If your Python executables have different names, set `ESPHOME_PYTHON` and `DIAGNOSTIC_PYTHON` when you run `make setup`.
+### Choose your terminal
+
+Home Assistant can run on a different machine. For setup, use the computer plugged into the ESP32. I tested the full workflow on an Intel Mac. The Linux and Windows/WSL 2 paths below use the same Unix tools and still need hardware testing on those platforms.
+
+| Your computer | Where to run the guide | What the USB port often looks like |
+| --- | --- | --- |
+| macOS | Terminal | `/dev/cu.usbserial-0001` or `/dev/cu.SLAB_USBtoUART` |
+| Linux | Your terminal | `/dev/ttyUSB0` or `/dev/ttyACM0` |
+| Windows | A Linux terminal in WSL 2 | Windows may show `COM3`; after USB attachment, WSL shows a Linux device such as `/dev/ttyUSB0` |
+
+<details>
+<summary>Windows: connect your ESP32 to WSL 2</summary>
+
+The project's Makefile uses Unix executable paths, and the verification script uses Unix file locking. Use WSL 2 for the whole walkthrough, including the builds. Install [WSL 2](https://learn.microsoft.com/en-us/windows/wsl/install) and follow [Microsoft’s USB setup guide](https://learn.microsoft.com/en-us/windows/wsl/connect-usb) to install `usbipd-win`.
+
+1. Plug in the ESP32 and keep a WSL terminal open.
+2. In **Administrator PowerShell**, run `usbipd list`. Find the USB-to-serial bridge by unplugging and reconnecting it. Run `usbipd bind --busid 4-4`, replacing `4-4` with its bus ID.
+3. In **PowerShell**, run `usbipd attach --wsl --busid 4-4` with that same ID.
+4. Switch to the **WSL terminal** for the rest of the guide. Clone the project under your Linux home directory and install the prerequisites inside WSL. If you unplug the ESP32, attach it again before the next upload.
+
+</details>
+
+### Install the tools and find your board
+
+Install Git, Make, a C++17 compiler, and Python with virtual environment support. My tested versions were Python 3.13.13 for [ESPHome](https://esphome.io/install/) and 3.9.6 for the SPI diagnostic. By default, `make setup` looks for `python3.13` and `python3`. If yours have different names, pass them explicitly, for example `make setup ESPHOME_PYTHON=python3.13 DIAGNOSTIC_PYTHON=python3.9`.
 
 ```sh
 git clone https://github.com/rachitshukla/esphome-cc1101-remote.git
@@ -53,12 +77,22 @@ make setup
 make check
 ```
 
-Plug in the ESP32. On macOS, run `ls /dev/cu.*` and look for the port that appears when you connect it. Replace the example port below with yours. The first command sets a shell variable you can reuse throughout this guide. The second uses [Espressif’s esptool](https://docs.espressif.com/projects/esptool/en/release-v4/esp32/esptool/basic-commands.html) to read the chip type and flash size.
+Run this once with the board unplugged and again after connecting it. On Windows, do the second check after attaching the board to WSL. The new entry is your port.
 
 ```sh
-PORT=/dev/cu.usbserial-0001
-.venv/bin/python -m esptool --port "$PORT" --no-stub flash_id
+.venv/bin/python -m serial.tools.list_ports -v
 ```
+
+Uncomment the matching `PORT=...` line below, set it to that entry, and reuse it throughout this terminal session. Then use [Espressif’s esptool](https://docs.espressif.com/projects/esptool/en/release-v4/esp32/esptool/basic-commands.html) to read the chip type and flash size.
+
+```sh
+# Choose one and substitute the port you found:
+# PORT=/dev/cu.usbserial-0001   # macOS
+# PORT=/dev/ttyUSB0             # Linux or WSL 2
+.venv/bin/python -m esptool --port "${PORT:?Set PORT to your serial device first}" --no-stub flash_id
+```
+
+If Linux or WSL lists the board but reports “permission denied,” check your account’s serial-device group permissions. [Espressif’s serial connection guide](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/get-started/establish-serial-connection.html)
 
 **Every upload in this guide replaces the firmware on the selected board.** Once you’ve confirmed the port and are ready to replace its firmware, install the [SPI diagnostic](src/main.cpp) and open its USB monitor:
 
