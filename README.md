@@ -229,11 +229,12 @@ For calibration, keep Brighten held and time the **first** bright-to-dim
 jump through the **fourth**. Divide by three for the average loop time.
 Timing between jumps excludes the delay before a hold takes effect. If
 the two directions appear to run at different speeds, repeat with Dim and
-watch the dim-to-bright jumps. In `packages/minka.yaml`, `minka_ramp_ms`
-currently estimates minimum-to-maximum travel at 500 ms. A full loop also
-includes any pause at the endpoints. The separate `minka_hold_lead_ms`
-estimates the delay before dimming starts at 300 ms. Both values still
-need checking on the lamp.
+watch the dim-to-bright jumps. Three Brighten loops on this lamp took about six seconds,
+or two seconds per loop. The setting `minka_ramp_ms` in `packages/minka.yaml`
+uses 1976 ms for travel between minimum and maximum, leaving one RF frame
+(about 24 ms) before the estimated wrap. Dim currently uses the same timing.
+The 300 ms delay before a hold takes effect is still an estimate. Physical
+endpoint dwell and the timing in the Dim direction have yet to be measured.
 
 The receive-only capture at 303.875 MHz ASK/OOK produced a dominant 12-bit
 message across five separate taps for every button. The eight leading address

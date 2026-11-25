@@ -59,6 +59,8 @@ void finish_frame() {{ {callback(tx['on_complete']['then'])} }}
             path = Path(tmp)
             (path / "callbacks.inc").write_text(callbacks)
             (path / "expected.h").write_text(
+                f"constexpr int ramp_ms = {int(profile['substitutions']['minka_ramp_ms'])};\n"
+                f"constexpr int hold_lead_ms = {int(profile['substitutions']['minka_hold_lead_ms'])};\n"
                 f"constexpr unsigned expected_hz = {expected['frequency_hz']};\n"
                 f"constexpr auto expected_on = {json.dumps(expected['on'])};\n"
                 f"constexpr auto expected_off = {json.dumps(expected['off'])};\n"

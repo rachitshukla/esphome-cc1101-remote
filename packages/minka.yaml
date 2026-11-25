@@ -1,5 +1,6 @@
 substitutions:
-  minka_ramp_ms: "500"       # Owner's estimate for travel from minimum to maximum
+  # Three Brighten loops took ~6 s. Leave one RF frame (~24 ms) for the wrap.
+  minka_ramp_ms: "1976"
   minka_hold_lead_ms: "300"  # Initial estimate for tap-to-hold recognition
 
 esphome:

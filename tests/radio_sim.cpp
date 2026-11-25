@@ -44,7 +44,7 @@ int main() {
       }
     }
   }
-  using Timing = minka::Dimmer<500, 300>;
+  using Timing = minka::Dimmer<ramp_ms, hold_lead_ms>;
   minka::LampEstimate lamp;
   assert(!Timing::pending(lamp, false, 0.5f));
   auto toggle = Timing::next(lamp, true, 1.0f);
@@ -52,7 +52,12 @@ int main() {
   assert(!Timing::pending(lamp, true, 1.0f));
   auto dim = Timing::next(lamp, true, 0.5f);
   assert(dim.command == minka::DIM && dim.frames > toggle.frames);
-  assert(!Timing::pending(lamp, true, 0.5f));
+  // Half the observed two-second cycle takes more than one bounded press.
+  assert(Timing::pending(lamp, true, 0.5f));
+  auto finish_dim = Timing::next(lamp, true, 0.5f);
+  assert(finish_dim.command == minka::DIM && !Timing::pending(lamp, true, 0.5f));
+  const int movement_us = (dim.frames + finish_dim.frames - 2 * Timing::lead) * minka::FRAME_US;
+  assert(movement_us >= 1000000 - 2 * minka::FRAME_US && movement_us < 1000000);
   auto saved = lamp.brightness;
   assert(Timing::next(lamp, false, 1.0f).frames == 7);
   assert(!Timing::pending(lamp, false, 1.0f) && lamp.brightness == saved);
