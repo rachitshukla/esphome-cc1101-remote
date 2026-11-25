@@ -1,187 +1,68 @@
-# Outdoor string lights and CC1101 radio tools
+# ESPHome CC1101 Remote
 
-The Home Assistant controller is `outdoor-string-lights.yaml`. It uses the
-local encrypted ESPHome API and the ON/OFF codes measured at 433.92 MHz.
-The other firmware targets are for hardware checks and remote discovery.
+Control sub-GHz RF devices from Home Assistant with an ESP32 and a CC1101 radio. Home Assistant sends commands over the local network using ESPHome’s encrypted native API. The ESP32 then transmits the RF command.
 
-## Reproduce the builds
+The outdoor string lights example grew out of a working two-button remote. Its ON and OFF messages decoded at **433.92 MHz, ASK/OOK, RC Switch protocol 1**. Each button produced the same 32-bit message across five independent presses. The configuration includes the measured ON and OFF codes from that remote. Capture your own codes when adapting it to another device. Home Assistant displays the last commanded state. The lights provide no feedback when someone uses the handheld remote.
 
-On the tested Intel Mac, the ESPHome environment uses Python 3.13.13,
-ESPHome 2026.10.2 and pySerial 3.5. The SPI diagnostic uses Python 3.9.6,
-PlatformIO 6.2.0 and esptool 4.14.0. Install Python, Make and a C++17
-compiler first. Override `ESPHOME_PYTHON` or `DIAGNOSTIC_PYTHON` on the
-make command line if those interpreters have different names on your Mac.
+## Hardware
+
+The tested setup uses an ESP32-WROOM-32 development board, a CC1101 module with an antenna, and these connections. Power the radio at **3.3 V**.
+
+| CC1101 pin | ESP32 connection |
+| --- | --- |
+| VCC | 3V3 |
+| GND | GND |
+| SCK | GPIO18 |
+| SI / MOSI | GPIO23 |
+| SO / MISO | GPIO19 |
+| CSN | GPIO5 |
+| GDO0 (transmit data) | GPIO4 |
+| GDO2 (receive data) | GPIO27 |
+
+## Build and check
+
+Install Git, Make, a C++17 compiler, and Python. The tested Intel Mac used Python 3.13.13 for ESPHome and Python 3.9.6 for the PlatformIO diagnostic.
 
 ```sh
+git clone https://github.com/rachitshukla/esphome-cc1101-remote.git
+cd esphome-cc1101-remote
 make setup
 make check
 make verify
 ```
 
-`check` validates four ESPHome configurations and runs host regressions.
-`verify` also builds each ESPHome target and the SPI diagnostic in sequence.
-Both use dummy credentials and keep their files under `.verify/`. Keep this
-directory for faster repeat builds. Use the production configuration and
-real local secrets for any separately approved upload.
+Override `ESPHOME_PYTHON` or `DIAGNOSTIC_PYTHON` when running `make setup` if your Python executables have different names. `make check` validates the configurations and runs the host tests. `make verify` also builds all five firmware targets sequentially. Verification uses dummy credentials and writes build artifacts under `.verify/`.
 
-## Adding another remote
+## Find and capture a remote
 
-1. Look for a frequency or model label on the remote. To survey candidate
-   frequencies, edit the integer-Hz list `survey_frequencies_hz` at the top
-   of `rf-survey.yaml`. Each output row pairs the tuned frequency in Hz with
-   its estimated signal strength in dBm. The receiver visits one channel per
-   20 ms interval. Short taps can fall between visits, so compare background
-   readings with several presses.
-2. To capture pulses at one frequency over USB, build the listener with an
-   override, e.g. `.venv-esphome/bin/esphome -s rx_frequency 315MHz compile rf-receive.yaml`.
-   Alternatively, build `rf-receive-lan.yaml` for an encrypted local API and
-   USB logging. Its Home Assistant `tune_receiver` action accepts
-   `frequency_hz` (integer Hz) during capture. It starts on the configured
-   frequency again after a reboot. After tuning, allow two seconds for the
-   previous pulse and signal-strength windows to clear before pressing a button.
-   Installing a diagnostic on the same ESP32
-   replaces the lights controller until the controller is uploaded again.
-3. Start `.venv/bin/python record.py /dev/cu.usbserial-0001 fan-on` and let
-   it collect a quiet baseline. Press one labeled button repeatedly. Check
-   for a consistent code, protocol, pulse timing, and rise in signal level.
-   The receiver and antenna's matching network can limit useful frequency coverage.
-4. For a confirmed fixed-code ASK/OOK remote decoded by RC Switch, add the
-   Home Assistant entity to the **same controller configuration**. In its
-   action list, reuse the include below. Supply the four substitutions from
-   measurements, with the binary code quoted to preserve leading zeros.
+| Target | When to use it |
+| --- | --- |
+| [SPI diagnostic](src/main.cpp) | Check the radio’s identity registers and verify repeated SPI reads and writes. |
+| [Frequency survey](rf-survey.yaml) | Compare signal strength on candidate frequencies while pressing the remote. |
+| [USB listener](rf-receive.yaml) | Record pulse timings and try RC Switch decoding at one frequency. |
+| [LAN listener](rf-receive-lan.yaml) | Change the listening frequency through Home Assistant’s `tune_receiver` action. |
+| [Lights controller](outdoor-string-lights.yaml) | Send a verified ON or OFF command from a Home Assistant light entity. |
 
-```yaml
-then: !include
-  file: packages/send-rc-switch.yaml
-  vars:
-    frequency_hz: ${fan_frequency_hz}
-    command_code: ${fan_on_bits}
-    protocol: ${fan_protocol}
-    repeats: ${fan_repeats}
-```
+Read the model and frequency label on your remote first. Start with the SPI diagnostic, then listen at the labeled frequency. If it is unknown, edit the survey’s candidate list. Compare a quiet baseline with several presses of each button. Use `record.py` to keep timestamped USB logs. Installing a listener or diagnostic replaces the firmware currently on that board.
 
-The command requests its own frequency. The transmitter finishes the
-previous frame, applies the new tuning and power table if the frequency
-changed, sends the repeats, and returns to idle. This action is specific to
-RC Switch encoding. A different fan protocol needs its own verified encoder.
-Add each fan command only once labeled presses produce a repeatable frame or
-pulse pattern at the measured receiver settings. After an approved upload,
-physically check lights ON/OFF, then alternate light and fan commands and
-observe both devices. Record the tested Git commit and results.
-
-## SPI diagnostic
-
-The firmware resets the radio, reads configuration and status registers,
-checks 32 repeated identity reads, then writes and restores the volatile
-ADDR register. It repeats every five seconds at 115200 baud. Both GDO pins
-are inputs. The radio stays in IDLE after reset. GPIO mapping follows
-the supplied wiring. Power the CC1101 from 3.3 V.
-
-## Identify and build
-
-Run these from this directory on a Mac with USB serial and package
-repository access. The ROM query briefly resets the ESP32 and reads the
-flash ID and detected size without writing to flash. Verify the chip is a
-classic ESP32 and check its actual flash size against the PlatformIO board
-settings before uploading.
+For example, to capture at 315 MHz on a Mac, set `PORT` to the board’s USB serial device. The upload command **writes firmware to the board**.
 
 ```sh
-python3 -m venv .venv
-.venv/bin/python -m pip install 'esptool>=4.8,<5' platformio
-.venv/bin/python -m esptool --port /dev/cu.usbserial-0001 --no-stub flash_id
-.venv/bin/pio run
+PORT=/dev/cu.usbserial-0001
+.venv-esphome/bin/esphome -s rx_frequency 315MHz compile rf-receive.yaml
+.venv-esphome/bin/esphome -s rx_frequency 315MHz upload rf-receive.yaml --device "$PORT"
+.venv/bin/python record.py "$PORT" remote-on
 ```
 
-## Upload after approval
+## Connect a device to Home Assistant
 
-The normal PlatformIO upload writes the bootloader, partition table, and
-application images along with framework support images. It can make the
-existing application and its data inaccessible. A full flash backup is
-possible on compatible hardware before upload. Substitute the detected
-flash capacity in bytes for SIZE_IN_BYTES if taking a backup.
+1. Set the frequency, protocol, repeat count, and ON/OFF codes in the lights configuration to the values you verified. Preserve leading zeros in the binary codes.
+2. Create an untracked `secrets.yaml` next to the configuration with `wifi_ssid`, `wifi_password`, and `string_lights_api_key`. Generate the API key locally with `openssl rand -base64 32`.
+3. Build and install the controller using `.venv-esphome/bin/esphome run outdoor-string-lights.yaml --device "$PORT"`.
+4. Add the ESPHome integration in Home Assistant. Select the discovered device or enter `string-lights-radio.local`, then enter the API key. Test ON and OFF while observing the lights.
 
-```sh
-# Optional backup
-.venv/bin/python -m esptool --chip esp32 --port /dev/cu.usbserial-0001 read_flash 0 "SIZE_IN_BYTES" existing-flash.bin
-```
+For another compatible fixed-code device, reuse the [shared transmit action](packages/send-rc-switch.yaml) with its measured frequency, protocol, repeat count, and command. The controller can switch frequency between devices. Fan commands depend on the specific remote and require their own captures.
 
-```sh
-.venv/bin/pio run -t upload --upload-port /dev/cu.usbserial-0001
-.venv/bin/pio device monitor --port /dev/cu.usbserial-0001 --baud 115200
-```
+## License
 
-## Read the results
-
-A pass requires a plausible identity, post-reset IDLE state, stable repeated
-reads, and both write/read patterns plus restoration. Consult the actual
-PARTNUM and VERSION values in the log. If SO times out, check the common
-ground, 3.3 V supply, CSN on GPIO5, and SO on GPIO19. If reads are constant or
-the ADDR test fails, check GPIO18 to SCK, GPIO23 to SI, GPIO19 to SO, and CSN
-continuity. A successful upload only confirms the ESP32 programming path.
-
-## Capture and integration after SPI verification
-
-Test 303.875/304, 315, and 433 MHz in receive mode. Measure background RSSI
-and compare against labeled short presses on each button. The 303.875 and
-304 MHz candidates can overlap in a wide receive filter. Refine the estimate
-with narrower settings or an independent RF measurement. Verify the module's
-matching network and antenna if reception is weak. Record demodulated edge
-timings and RSSI with the tuned frequency, bandwidth, and receiver profile.
-Try ASK/OOK and 2-FSK profiles separately. Collect multiple independent
-presses of each button and compare the frames. Variation alone does not
-establish a rolling code. Packet bytes require a matching packet configuration
-or offline decoding of the recorded pulses.
-
-For a compatible ASK/OOK protocol, ESPHome's built-in CC1101 component can
-use GDO2 on GPIO27 with `remote_receiver` and GDO0 on GPIO4 with
-`remote_transmitter`. Use the measured receive profile and decoded commands
-to map the supported fan and light functions, with local Wi-Fi and the
-native Home Assistant API. Transmitter setup depends on confirming the
-frequency, RF profile, and protocol.
-
-### ESPHome receive-only configuration
-
-After the SPI check passes, use `rf-receive.yaml` with an ESPHome release
-that includes the built-in CC1101 component. The first-tune frequency,
-modulation, bandwidth, and pulse filters are exploratory settings. The
-configuration logs signed pulse durations and attempts RC Switch decoding
-over USB. It uses GDO2 on GPIO27 and includes no transmit actions. It reports the highest sampled RSSI each second, including during quiet periods.
-The current tuning of 433.92 MHz comes from the remote label.
-
-```sh
-.venv-esphome/bin/esphome config rf-receive.yaml
-.venv-esphome/bin/esphome compile rf-receive.yaml
-```
-
-Repeat at 304MHz, 315MHz, 433MHz, and 433.92MHz as appropriate. Each
-substitution changes the compiled configuration. Obtain approval before
-uploading. At each setting, log at least 10 seconds of background, then
-record five separated short presses per button and one sustained press.
-Keep a separate log per frequency and label the press order and button.
-
-## Outdoor string lights
-
-The two-button remote is for outdoor string lights. At its labeled
-433.92 MHz, the ASK/OOK listener decoded five matching RC Switch protocol 1
-frames per button. ON was 0x324F9C1D and OFF was 0x324FA324.
-See captures/433920-ook-20261124-214358.log for timestamps and signal levels.
-Protocol 1 uses nominal 350 and 1050 microsecond data pulses. The decoder
-printed the decoded frames without their individual pulse widths.
-
-Use outdoor-string-lights.yaml for the local Home Assistant light. Put
-wifi_ssid, wifi_password, and string_lights_api_key in secrets.yaml beside
-the configuration. The API key is a base64-encoded 32-byte random value
-and is also used when pairing the ESPHome device with Home Assistant.
-Generate a key locally with openssl rand -base64 32.
-
-```sh
-.venv-esphome/bin/esphome compile outdoor-string-lights.yaml
-# After authorizing this upload
-.venv-esphome/bin/esphome upload outdoor-string-lights.yaml --device /dev/cu.usbserial-0001
-```
-
-In Home Assistant, open Settings → Devices & services and add the discovered
-ESPHome device. If needed, enter string-lights-radio.local or its LAN IP
-and the encryption key. The light shows the last locally commanded state.
-Five repeats and 0 dBm transmit power are the settings used in the successful
-Home Assistant ON/OFF test. The light controller has provided no state feedback.
+[MIT](LICENSE)
