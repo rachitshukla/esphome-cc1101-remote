@@ -1,0 +1,17 @@
+# Called by device actions on the shared transmitter.
+- if:
+    condition:
+      lambda: return id(ready_for_commands);
+    then:
+      - globals.set:
+          id: next_tx_hz
+          value: !lambda |-
+            constexpr uint32_t hz = ${frequency_hz};
+            static_assert(rf_bands::supported(hz), "Frequency outside the CC1101 bands");
+            return hz;
+      - remote_transmitter.transmit_rc_switch_raw:
+          code: ${command_code}
+          protocol: ${protocol}
+          repeat:
+            times: ${repeats}
+            wait_time: 0us

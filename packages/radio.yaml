@@ -1,0 +1,17 @@
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  baud_rate: 115200
+
+spi:
+  clk_pin: GPIO18
+  mosi_pin: GPIO23
+  miso_pin: GPIO19
+
+cc1101:
+  id: radio
+  cs_pin: GPIO5
+  modulation_type: ASK/OOK

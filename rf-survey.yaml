@@ -1,0 +1,47 @@
+substitutions:
+  survey_frequencies_hz: [303875000, 304000000, 315000000, 433000000, 433920000]
+
+packages:
+  hardware: !include packages/radio.yaml
+
+esphome:
+  includes: [packages/rf_bands.h, packages/rf_measurement.h]
+  name: fan-rf-survey
+
+cc1101:
+  frequency: ${survey_frequencies_hz[0]}Hz
+  filter_bandwidth: 101kHz
+  packet_mode: false
+
+# Sample each frequency after one full dwell time for the receiver to settle.
+# One report per sweep keeps the USB output small and shows the board is alive.
+interval:
+  - interval: 20ms
+    then:
+      - lambda: |-
+          static constexpr uint32_t frequencies[] = {${survey_frequencies_hz | join(', ')}};
+          static_assert([] {
+            for (auto hz : frequencies) {
+              if (!rf_bands::supported(hz)) return false;
+            }
+            return true;
+          }(), "Survey frequency outside the CC1101 bands");
+          static constexpr size_t count = sizeof(frequencies) / sizeof(frequencies[0]);
+          static size_t channel = 0;
+          static float samples[count];
+          auto &receiver = *id(radio);
+          if (receiver.is_failed()) return;
+
+          samples[channel] = rf_measurement::read_dbm(receiver);
+          if (++channel == count) {
+            channel = 0;
+            // Nine frequency digits and up to six dBm characters per entry.
+            char report[24 * count + 1];
+            size_t pos = 0;
+            for (size_t i = 0; i < count; ++i) {
+              pos += snprintf(report + pos, sizeof(report) - pos, " %u=%.1f",
+                              static_cast<unsigned>(frequencies[i]), samples[i]);
+            }
+            ESP_LOGI("survey", "ms=%u Hz=dBm%s", static_cast<unsigned>(millis()), report);
+          }
+          if (count > 1) receiver.set_frequency(frequencies[channel]);

@@ -1,0 +1,45 @@
+packages:
+  hardware: !include packages/radio.yaml
+
+substitutions:
+  rx_frequency: 433.92MHz
+  rx_modulation: ASK/OOK
+  rx_bandwidth: 203kHz
+
+esphome:
+  includes: [packages/rf_measurement.h]
+  name: fan-rf-receive
+  on_boot:
+    priority: -100
+    then:
+      - cc1101.begin_rx
+      - logger.log: "RF capture listening at ${rx_frequency} using ${rx_modulation}, nominal bandwidth ${rx_bandwidth}"
+
+cc1101:
+  frequency: ${rx_frequency}
+  modulation_type: ${rx_modulation}
+  filter_bandwidth: ${rx_bandwidth}
+  packet_mode: false
+
+remote_receiver:
+  pin: GPIO27
+  dump: [raw, rc_switch]
+  filter: 100us
+  idle: 8ms
+
+# Log the strongest sampled signal each second, including quiet periods.
+interval:
+  - interval: 20ms
+    then:
+      - lambda: |-
+          static float peak = -150.0f;
+          static uint32_t last_report = 0;
+          if (id(radio)->is_failed()) return;
+          const float dbm = rf_measurement::read_dbm(*id(radio));
+          if (dbm > peak) peak = dbm;
+          const uint32_t now = millis();
+          if (now - last_report >= 1000) {
+            ESP_LOGI("signal", "ms=%u peak_dBm=%.1f", static_cast<unsigned>(now), peak);
+            peak = -150.0f;
+            last_report = now;
+          }

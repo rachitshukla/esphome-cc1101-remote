@@ -1,0 +1,77 @@
+substitutions:
+  lights_frequency_hz: "433920000"
+  tx_power_dbm: "0"
+
+packages:
+  hardware: !include packages/radio.yaml
+
+esphome:
+  includes: [packages/rf_bands.h]
+  name: string-lights-radio
+  friendly_name: String Lights Radio
+  on_boot:
+    priority: -100
+    then:
+      - cc1101.set_idle
+      - lambda: id(ready_for_commands) = true;
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  encryption:
+    key: !secret string_lights_api_key
+
+cc1101:
+  frequency: ${lights_frequency_hz}Hz
+  output_power: ${tx_power_dbm}
+
+remote_transmitter:
+  pin: GPIO4
+  non_blocking: true
+  carrier_duty_percent: 100%
+  on_transmit:
+    then:
+      # ESPHome completes the previous frame before this hook runs.
+      - lambda: |-
+          static uint32_t tuned_hz = ${lights_frequency_hz};
+          const uint32_t requested = id(next_tx_hz);
+          if (requested != tuned_hz) {
+            id(radio)->set_frequency(requested);
+            // The PA table depends on the RF band.
+            id(radio)->set_output_power(${tx_power_dbm});
+            tuned_hz = requested;
+          }
+      - cc1101.begin_tx
+  on_complete:
+    then:
+      - cc1101.set_idle
+
+globals:
+  - id: next_tx_hz
+    type: uint32_t
+    initial_value: "${lights_frequency_hz}"
+  - id: ready_for_commands
+    type: bool
+    initial_value: 'false'
+
+output:
+  - platform: template
+    id: rf_light_output
+    type: binary
+    write_action: !include
+      file: packages/send-rc-switch.yaml
+      vars:
+        frequency_hz: ${lights_frequency_hz}
+        protocol: 1
+        repeats: 5
+        command_code: !lambda |-
+          return state ? "00110010010011111001110000011101"
+                       : "00110010010011111010001100100100";
+
+light:
+  - platform: binary
+    name: Outdoor String Lights
+    output: rf_light_output
+    restore_mode: RESTORE_DEFAULT_OFF
