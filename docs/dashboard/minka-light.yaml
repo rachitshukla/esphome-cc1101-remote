@@ -1,0 +1,31 @@
+type: vertical-stack
+cards:
+  - type: tile
+    entity: light.esp_rf_controller_minka_aire_fan_light
+    name: Fan light
+    tap_action: {action: toggle}
+    icon_tap_action: {action: toggle}
+  - type: horizontal-stack
+    cards:
+      - type: custom:button-card
+        name: Hold to dim
+        icon: mdi:brightness-5
+        press_action:
+          action: perform-action
+          perform_action: esphome.string_lights_radio_minka_light_hold
+          data: {brighten: false, pressed: true}
+        release_action:
+          action: perform-action
+          perform_action: esphome.string_lights_radio_minka_light_hold
+          data: {brighten: false, pressed: false}
+      - type: custom:button-card
+        name: Hold to brighten
+        icon: mdi:brightness-7
+        press_action:
+          action: perform-action
+          perform_action: esphome.string_lights_radio_minka_light_hold
+          data: {brighten: true, pressed: true}
+        release_action:
+          action: perform-action
+          perform_action: esphome.string_lights_radio_minka_light_hold
+          data: {brighten: true, pressed: false}

@@ -20,8 +20,21 @@ class RadioTest(unittest.TestCase):
         self.assertEqual(float(profile["cc1101"][0]["frequency"]), expected["frequency_hz"])
         light = next(l for l in profile["light"] if l["name"] == "Outdoor String Lights")
         fan_light = next(l for l in profile["light"] if l["id"] == "minka_light")
-        self.assertEqual(fan_light["platform"], "monochromatic")
+        self.assertEqual(fan_light["platform"], "binary")
+        devices = {d["id"]: d["area_id"] for d in profile["esphome"]["devices"]}
+        areas = {a["id"]: a["name"] for a in profile["esphome"]["areas"]}
+        self.assertEqual(areas[devices[light["device_id"]]], "Backyard")
+        self.assertEqual(areas[devices[fan_light["device_id"]]], "Primary Bedroom")
+        self.assertEqual(profile["fan"][0]["device_id"], fan_light["device_id"])
         self.assertEqual(fan_light["restore_mode"], "RESTORE_DEFAULT_OFF")
+        hold_action = next(a for a in profile["api"]["actions"] if a["action"] == "minka_light_hold")
+        card = yaml.safe_load((ROOT / "docs/dashboard/minka-light.yaml").read_text())
+        for button, brighten in zip(card["cards"][1]["cards"], (False, True), strict=True):
+            for gesture, pressed in (("press_action", True), ("release_action", False)):
+                action = button[gesture]
+                expected_service = "esphome.string_lights_radio_" + hold_action["action"]
+                self.assertEqual(action["perform_action"], expected_service)
+                self.assertEqual(action["data"], {"brighten": brighten, "pressed": pressed})
         output = next(o for o in profile["output"] if o["id"] == light["output"])
         guard, = output["write_action"]["then"]
         stage, send = guard["if"]["then"]
@@ -49,6 +62,7 @@ class RadioTest(unittest.TestCase):
 bool ready_for_commands = {init['ready_for_commands']};
 uint32_t next_tx_hz = {init['next_tx_hz']};
 bool enabled() {{ {guard['if']['condition']['lambda']} }}
+void dashboard_hold(bool brighten, bool pressed) {{ {hold_action['then'][0]['lambda']} }}
 void boot() {{ {callback(boot['then'])} }}
 uint32_t lights_frequency() {{ {stage['globals.set']['value']} }}
 std::string code(bool state) {{ {frame['code']} }}
@@ -59,8 +73,6 @@ void finish_frame() {{ {callback(tx['on_complete']['then'])} }}
             path = Path(tmp)
             (path / "callbacks.inc").write_text(callbacks)
             (path / "expected.h").write_text(
-                f"constexpr int ramp_ms = {int(profile['substitutions']['minka_ramp_ms'])};\n"
-                f"constexpr int hold_lead_ms = {int(profile['substitutions']['minka_hold_lead_ms'])};\n"
                 f"constexpr unsigned expected_hz = {expected['frequency_hz']};\n"
                 f"constexpr auto expected_on = {json.dumps(expected['on'])};\n"
                 f"constexpr auto expected_off = {json.dumps(expected['off'])};\n"

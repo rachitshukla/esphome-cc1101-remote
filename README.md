@@ -203,38 +203,31 @@ Run `make check` for configuration checks and host regression tests. Run `make v
 
 ## Minka Aire DL-4111G-01
 
-Home Assistant exposes **Minka Aire Fan** (three speeds and stop) and **Minka
-Aire Fan Light** (power and brightness). For both light controls on a dashboard,
-add a Tile card for the fan light, set the icon tap action to Toggle, and add
-the **Light brightness** feature. The fan light replaces the four momentary
-light buttons. Update any automations that used those buttons.
+The ESP32 exposes two RF appliances through one encrypted connection. In
+**Settings → Devices & services → ESPHome**, look for **Backyard String Lights**
+in **Backyard** and **Minka Aire** in **Primary Bedroom**. Minka Aire contains
+the three-speed fan and its light. Home Assistant receives the room names as
+suggested areas. If an existing assignment takes precedence, edit the device's
+area and check for an area override on the entity. After moving existing
+entities, check any dashboards or automations that reference them.
 
-A short tap on either remote light button toggles power. Hold Brighten and
-the lamp brightens until it jumps back to dim. Hold Dim and it dims until
-it jumps back to bright. Both cycles continue as long as the button is held.
+Use a Tile card for fan-light power. The physical receiver toggles power on
+either button tap. Home Assistant shows the last requested power state.
+For manual brightness control, install **Button Card** through HACS and add
+the [fan-light card](docs/dashboard/minka-light.yaml) to the bedroom dashboard
+using **Edit dashboard → Add card → Manual**. Select your fan-light entity
+in the tile if Home Assistant uses a different entity ID. For power alone,
+use just the Tile card. Remove any old brightness-slider feature from that tile.
 
-To line up the slider with the lamp, set **Minka Aire Fan Light** to ON and
-100% in Home Assistant and let the command finish. If the lamp is off, tap
-either handheld light button once. Hold **Dim** and release as soon as you
-see the jump from dim to bright. Leave the lamp on. Home Assistant and the
-lamp now have approximately the same starting brightness. Repeat this if
-handheld use or a missed command puts them out of sync.
-
-The slider sends a timed hold in the direction of the requested change. The
-lamp gives no brightness feedback, so a timing error near either end can
-carry it around the loop. The controller also assumes the lamp remembers
-its brightness across power toggles.
-
-For calibration, keep Brighten held and time the **first** bright-to-dim
-jump through the **fourth**. Divide by three for the average loop time.
-Timing between jumps excludes the delay before a hold takes effect. If
-the two directions appear to run at different speeds, repeat with Dim and
-watch the dim-to-bright jumps. Three Brighten loops on this lamp took about six seconds,
-or two seconds per loop. The setting `minka_ramp_ms` in `packages/minka.yaml`
-uses 1976 ms for travel between minimum and maximum, leaving one RF frame
-(about 24 ms) before the estimated wrap. Dim currently uses the same timing.
-The 300 ms delay before a hold takes effect is still an estimate. Physical
-endpoint dwell and the timing in the Dim direction have yet to be measured.
+With the lamp on, press and hold **Dim** or **Brighten** while watching the lamp.
+Lifting your finger sends the two captured release frames after the active
+group finishes. Short touches under 250 ms are ignored. The initial group
+lasts about half a second and subsequent groups last about a tenth of a second.
+A hold ends automatically after about six seconds if the release is lost.
+The handheld remote cycles through brightness in either direction, wrapping at
+each end. Three Brighten loops on the handheld took about six seconds.
+The dashboard button uses the local ESPHome action for press and release.
+See the [Button Card momentary action documentation](https://github.com/custom-cards/button-card/blob/master/docs/source/config/main.md).
 
 The receive-only capture at 303.875 MHz ASK/OOK produced a dominant 12-bit
 message across five separate taps for every button. The eight leading address
@@ -242,5 +235,5 @@ bits were zero for this remote. Stop, low, medium, high, dim and brighten
 ended in A, 2, 4, 8, 5 and 9 respectively (hex). Long presses repeated the
 light command and ended with zero frames. The initial transmit settings
 use 330/670 microsecond pulses, about 11.7 ms between frames, seven command
-frames for a tap, and two trailing zero frames. The owner confirmed fan speed control on the appliance. The light slider still
-needs calibration on the lamp.
+frames for a tap, and two trailing zero frames. The owner confirmed fan speed control on the appliance.
+The dashboard hold and release need a physical test on the lamp.

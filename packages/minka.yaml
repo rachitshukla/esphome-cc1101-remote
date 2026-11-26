@@ -1,94 +1,115 @@
-substitutions:
-  # Three Brighten loops took ~6 s. Leave one RF frame (~24 ms) for the wrap.
-  minka_ramp_ms: "1976"
-  minka_hold_lead_ms: "300"  # Initial estimate for tap-to-hold recognition
-
 esphome:
   includes: [packages/minka.h]
+
+api:
+  actions:
+    - action: minka_light_hold
+      variables:
+        brighten: bool
+        pressed: bool
+      then:
+        - lambda: |-
+            if (!id(ready_for_commands)) return;
+            const int command = brighten ? minka::BRIGHTEN : minka::DIM;
+            if (pressed) {
+              if (id(held_command) == 0) id(hold_minka_light).execute(command);
+            } else if (id(held_command) == command) {
+              id(stop_minka_hold).execute();
+            }
 
 script:
   - id: send_minka
     parameters:
       command: int
       frames: int
+      release: bool
     then:
       - if:
           condition:
             lambda: return id(ready_for_commands);
           then:
-            - globals.set:
-                id: next_tx_hz
-                value: '303875000'
+            - globals.set: {id: next_tx_hz, value: '303875000'}
             - remote_transmitter.transmit_raw:
-                code: !lambda return minka::waveform(command, frames);
+                code: !lambda return minka::waveform(command, frames, release);
                 carrier_frequency: 0Hz
 
-  - id: apply_fan_light
-    mode: single
+  - id: finish_minka_hold
     then:
-      - delay: 150ms
-      - while:
-          condition:
-            lambda: |-
-              using Timing = minka::Dimmer<${minka_ramp_ms}, ${minka_hold_lead_ms}>;
-              const auto &target = id(minka_light).remote_values;
-              return Timing::pending({id(lamp_on), id(lamp_level)}, target.is_on(), target.get_brightness());
+      - lambda: |-
+          if (id(hold_on_air)) id(send_minka).execute(0, 0, true);
+          id(hold_on_air) = false;
+          id(held_command) = 0;
+
+  - id: stop_minka_hold
+    then:
+      - script.stop: hold_minka_light
+      - script.execute: finish_minka_hold
+
+  - id: hold_minka_light
+    parameters:
+      command: int
+    then:
+      - lambda: id(held_command) = command;
+      # A brief touch on a brightness control should leave power alone.
+      - delay: 250ms
+      - lambda: |-
+          id(hold_on_air) = true;
+          id(send_minka).execute(command, 21, false);
+      - delay: 490ms
+      # Each group lasts ~96 ms. Start the next just before the current
+      # group finishes; the transmitter waits for the last frame on air.
+      # The bounded repeat also releases the key if the client disappears.
+      - repeat:
+          count: 55
           then:
-            - lambda: |-
-                using Timing = minka::Dimmer<${minka_ramp_ms}, ${minka_hold_lead_ms}>;
-                const auto &target = id(minka_light).remote_values;
-                minka::LampEstimate lamp{id(lamp_on), id(lamp_level)};
-                auto press = Timing::next(lamp, target.is_on(), target.get_brightness());
-                id(send_minka).execute(press.command, press.frames);
-                id(lamp_on) = lamp.on;
-                id(lamp_level) = lamp.brightness;
-                // Allow both release frames and a gap before the next press.
-                id(lamp_wait_ms) = (press.frames + minka::RELEASE_FRAMES) * minka::FRAME_US / 1000 + 120;
-            - delay: !lambda return id(lamp_wait_ms);
+            - lambda: id(send_minka).execute(command, 4, false);
+            - delay: 90ms
+      - script.execute: finish_minka_hold
 
 globals:
-  - id: lamp_on
-    type: bool
-    restore_value: true
-    initial_value: 'false'
-  - id: lamp_level
-    type: uint8_t
-    restore_value: true
-    initial_value: '255'
-  - id: lamp_wait_ms
+  - id: held_command
     type: int
     initial_value: '0'
+  - id: hold_on_air
+    type: bool
+    initial_value: 'false'
+  - id: lamp_on
+    type: bool
+    initial_value: 'false'
 
 fan:
   - platform: template
     id: minka_fan
     name: Minka Aire Fan
+    device_id: bedroom_fan
     speed_count: 3
     restore_mode: RESTORE_DEFAULT_OFF
     on_state:
+      - script.execute: stop_minka_hold
       - script.execute:
           id: send_minka
           command: !lambda return minka::fan_command(x->state, x->speed);
           frames: 7
+          release: true
 
 output:
   - platform: template
     id: minka_light_output
-    type: float
-    # Handle the requested state once below, including HA transition requests.
+    type: binary
     write_action: []
 
 light:
-  - platform: monochromatic
+  - platform: binary
     id: minka_light
     name: Minka Aire Fan Light
+    device_id: bedroom_fan
     output: minka_light_output
     restore_mode: RESTORE_DEFAULT_OFF
-    default_transition_length: 0s
-    gamma_correct: 1.0
     on_state:
-      - if:
-          condition:
-            lambda: return id(ready_for_commands) && !id(apply_fan_light).is_running();
-          then:
-            - script.execute: apply_fan_light
+      - lambda: |-
+          const bool on = id(minka_light).remote_values.is_on();
+          if (on == id(lamp_on)) return;
+          id(lamp_on) = on;
+          if (!id(ready_for_commands)) return;
+          id(stop_minka_hold).execute();
+          id(send_minka).execute(minka::BRIGHTEN, minka::TAP_FRAMES, true);

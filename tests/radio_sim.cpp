@@ -16,6 +16,15 @@ struct TestRadio {
 };
 TestRadio device;
 TestRadio *radio = &device;
+int held_command = 0;
+struct HoldScript {
+  int starts = 0;
+  void execute(int command) { ++starts; held_command = command; }
+} hold_minka_light;
+struct StopHoldScript {
+  int stops = 0;
+  void execute() { ++stops; held_command = 0; }
+} stop_minka_hold;
 #define id(name) name
 #include "callbacks.inc"
 
@@ -44,34 +53,16 @@ int main() {
       }
     }
   }
-  using Timing = minka::Dimmer<ramp_ms, hold_lead_ms>;
-  minka::LampEstimate lamp;
-  assert(!Timing::pending(lamp, false, 0.5f));
-  auto toggle = Timing::next(lamp, true, 1.0f);
-  assert(toggle.command == minka::BRIGHTEN && toggle.frames == 7);
-  assert(!Timing::pending(lamp, true, 1.0f));
-  auto dim = Timing::next(lamp, true, 0.5f);
-  assert(dim.command == minka::DIM && dim.frames > toggle.frames);
-  // Half the observed two-second cycle takes more than one bounded press.
-  assert(Timing::pending(lamp, true, 0.5f));
-  auto finish_dim = Timing::next(lamp, true, 0.5f);
-  assert(finish_dim.command == minka::DIM && !Timing::pending(lamp, true, 0.5f));
-  const int movement_us = (dim.frames + finish_dim.frames - 2 * Timing::lead) * minka::FRAME_US;
-  assert(movement_us >= 1000000 - 2 * minka::FRAME_US && movement_us < 1000000);
-  auto saved = lamp.brightness;
-  assert(Timing::next(lamp, false, 1.0f).frames == 7);
-  assert(!Timing::pending(lamp, false, 1.0f) && lamp.brightness == saved);
-  assert(Timing::next(lamp, true, 0.5f).frames == 7);
-  assert(!Timing::pending(lamp, true, 0.5f));
-  assert(Timing::next(lamp, true, 1.0f).command == minka::BRIGHTEN);
-  for (int i = 0; i <= 255; ++i) {
-    using Slow = minka::Dimmer<3000, 350>;
-    float target = i / 255.0f;
-    int count = 0;
-    while (Slow::pending(lamp, true, target)) {
-      auto press = Slow::next(lamp, true, target);
-      assert(press.frames > 7 && press.frames <= 42 && ++count < 10);
-    }
+  // The captured hold repeats the same command until the two zero release frames.
+  for (auto command : {minka::BRIGHTEN, minka::DIM}) {
+    auto hold = minka::waveform(command, 21, false);
+    auto continuation = minka::waveform(command, 4, false);
+    auto release = minka::waveform(0, 0, true);
+    assert(hold.size() == 21 * 26 && continuation.size() == 4 * 26);
+    assert(release.size() == 2 * 26);
+    hold.insert(hold.end(), continuation.begin(), continuation.end());
+    hold.insert(hold.end(), release.begin(), release.end());
+    assert(hold == minka::waveform(command, 25));
   }
   using rf_bands::supported;
   for (auto band : {std::pair{300000000u, 348000000u}, std::pair{387000000u, 464000000u},
@@ -81,7 +72,16 @@ int main() {
   }
   assert(!enabled());
   assert(device.events.empty());
+  dashboard_hold(true, true);
+  assert(held_command == 0 && hold_minka_light.starts == 0);
   boot();
+  dashboard_hold(false, true);
+  dashboard_hold(false, true);
+  dashboard_hold(true, false);
+  assert(held_command == minka::DIM && hold_minka_light.starts == 1);
+  dashboard_hold(false, false);
+  dashboard_hold(false, false);
+  assert(held_command == 0 && stop_minka_hold.stops == 1);
   assert(enabled() && device.events == std::vector<Event>{idle});
   assert(lights_frequency() == expected_hz);
   assert(code(true) == expected_on && code(false) == expected_off);

@@ -10,6 +10,12 @@ esphome:
   includes: [packages/rf_bands.h]
   name: string-lights-radio
   friendly_name: String Lights Radio
+  areas:
+    - {id: backyard, name: Backyard}
+    - {id: primary_bedroom, name: Primary Bedroom}
+  devices:
+    - {id: backyard_lights, name: Backyard String Lights, area_id: backyard}
+    - {id: bedroom_fan, name: Minka Aire, area_id: primary_bedroom}
   on_boot:
     priority: -100
     then:
@@ -74,5 +80,8 @@ output:
 light:
   - platform: binary
     name: Outdoor String Lights
+    device_id: backyard_lights
+    on_state:
+      - script.execute: stop_minka_hold
     output: rf_light_output
     restore_mode: RESTORE_DEFAULT_OFF
