@@ -1,13 +1,15 @@
 # ESPHome CC1101 Remote
 
-I use one ESP32 and one CC1101 radio to control my backyard string lights and bedroom ceiling fan from Home Assistant. The ESP32 connects over Wi-Fi using the encrypted ESPHome API and tunes the radio for each command. Both handheld remotes still work. The appliances send no state feedback, so a handheld button press can leave the dashboard out of sync.
+I wanted to make the “dumb” devices I already own smart and keep control of them at home. If you like to tinker, an inexpensive ESP32 board and a CC1101 radio let you build a second remote for a compatible appliance. You can listen to its handheld remote, work out what each button sends, and decide what a dashboard button or automation should do.
+
+I use one board for my backyard string lights and my bedroom ceiling fan. I can schedule the lights to come on at sunset or pick a fan speed from my phone. Home Assistant sends each command over local Wi-Fi through the encrypted ESPHome API, and the CC1101 transmits it by radio. The command stays in my home, so control works even when the internet is down, without relying on a third-party web service.
 
 | Home Assistant device | Radio | Controls |
 | --- | --- | --- |
 | [Backyard String Lights](#backyard-string-lights) | 433.92 MHz, ASK/OOK, RC Switch protocol 1 | Separate ON and OFF commands |
 | [Minka Aire DL-4111G-01](#minka-aire-dl-4111g-01) | 303.875 MHz, ASK/OOK, 12-bit frames | Stop, three fan speeds, light toggle, hold to dim or brighten |
 
-The [controller configuration](outdoor-string-lights.yaml) exposes both devices through one local connection. For a different remote, start with the receiver and compare several presses of each button before configuring transmission.
+Both handheld remotes still work. These appliances send no state feedback, so Home Assistant shows the last command it sent and can get out of sync after a handheld button press. The [controller configuration](outdoor-string-lights.yaml) contains both examples. For a different remote, start with the receiver and compare several presses of each button before configuring transmission.
 
 ## 1. Connect the radio
 
